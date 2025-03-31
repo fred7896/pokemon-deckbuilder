@@ -18,162 +18,111 @@ export function getTalentScore(card) {
     return getTalentScoreWithBreakdown(card).total;
   }
   
-  export function getTalentScoreWithBreakdown(card, options = {}) {
-    const { averagePV = 150, tankThresholds = null } = options;
-  
-    const positive = [
-      { label: "Attach Energy", pattern: /attach.*energy.*from.*zone/i, weight: 50 },
-      { label: "Remove Opponent Energy", pattern: /remove.*energy.*from.*opponent/i, weight: 20 },
-      { label: "Boost Damage", pattern: /increase.*damage|additional.*damage/i, weight: 15 },
-      { label: "Heal All", pattern: /heal.*all.*pokemon/i, weight: 12 },
-      { label: "Bench Damage", pattern: /damage.*bench|bench.*damage/i, weight: 10 },
-      { label: "Heal Self", pattern: /heal.*this.*pokemon/i, weight: 8 },
-      { label: "Ailment Effects", pattern: /poisoned|burned|asleep|paralyzed|confused/i, weight: 6 },
-    ];
-  
-    const negative = [
-      { label: "Can't use", pattern: /can't use/i, weight: -50 },
-      { label: "Discard Deck", pattern: /discard.*your deck/i, weight: -40 },
-      { label: "Flip Coin", pattern: /flip a coin/i, weight: -5 },
-      { label: "Condition Limit", pattern: /only if|does nothing if|if you have less/i, weight: -50 },
-      { label: "Discard All Energy", pattern: /discard all energy/i, weight: -50 },
-      { label: "Discard 2 Energy", pattern: /discard 2 .*energy/i, weight: -30 },
-    ];
-  
-    let fullText = "";
-    if (card.ability && Array.isArray(card.ability)) {
-      fullText += card.ability.map(a => `${a.info} ${a.effect || ""}`).join(" ");
-    }
-    if (card.attack && Array.isArray(card.attack)) {
-      fullText += " " + card.attack.map(a => `${a.info} ${a.effect || ""}`).join(" ");
-    }
-    if (card.text) {
-      fullText += " " + card.text;
-    }
-    fullText = stripHtml(fullText.toLowerCase());
-  
-    const breakdown = [];
-    let total = 0;
-  
-    for (const entry of positive) {
-      if (entry.pattern.test(fullText)) {
-        breakdown.push({ label: entry.label, value: entry.weight });
-        total += entry.weight;
-      }
-    }
-  
-    for (const entry of negative) {
-      if (entry.pattern.test(fullText)) {
-        breakdown.push({ label: entry.label, value: entry.weight });
-        total += entry.weight;
-      }
-    }
-    console.log(fullText);
-    const manaLeakMatch = fullText.match(/discard (\d+)\s*{[^}]+}\s*energy from this/i); // ok
-    if (manaLeakMatch) {
-      const val = -parseInt(manaLeakMatch[1], 10) * 15;
-      breakdown.push({ label: "Mana Leak", value: val });
-      total += val;
-    }
-  
-    const selfDamageMatch = fullText.match(/does (\d+) damage to itself/); // ok
-    if (selfDamageMatch) {
-      const val = -parseInt(selfDamageMatch[1], 10);
-      breakdown.push({ label: "Self Damage", value: val });
-      total += val;
-    }
-  
-    const bonusDamageMatch = fullText.match(/this attack does (\d+) more damage/i); // ok
-    if (bonusDamageMatch) {
-      const val = parseInt(bonusDamageMatch[1], 10);
-      breakdown.push({ label: "Bonus Conditional Damage", value: val *0.75 });
-      total += val;
-    }
-  
-    const opponentDamageMatch = fullText.match(/do (\d+) damage to .*opponent/i); // ok pour darkrai
-    if (opponentDamageMatch) {
-      const val = parseInt(opponentDamageMatch[1], 10);
-      breakdown.push({ label: "Direct Opponent Damage", value: val });
-      total += val;
-    }
-  
-    const attackingDamageMatch = fullText.match(/do (\d+) damage to .*attacking/i); //ok pour Druddigon
-    if (attackingDamageMatch) {
-      const val = parseInt(attackingDamageMatch[1], 10);
-      breakdown.push({ label: "Damage to Attacking", value: val });
-      total += val;
-    }
-  
-    const energyZoneMatch = fullText.match(/take * energy from your energy zone/i);
-    if (energyZoneMatch) {
-      breakdown.push({ label: "Energy Gained", value: 50 });
-      total += 50;
-    }
-  
-    if (fullText.includes("discard a random energy from your opponent")) {
-      breakdown.push({ label: "Disrupt Opponent Energy", value: 40 });
-      total += 20;
-    }
-  
-    const attackCount = (card.attack && Array.isArray(card.attack)) ? card.attack.length : 0;
-    if (attackCount >= 2) {
-      breakdown.push({ label: "Polyvalence (2+ attaques)", value: 20 });
-      total += 10;
-    }
-  
-    // Nouveau : calcul du meilleur ratio degat/energie + bonus paliers 1-2 energies
-    if (card.attack && Array.isArray(card.attack)) {
-      let bestRatio = 0;
-      let bestFlatDamage = 0;
-  
-      card.attack.forEach(atk => {
-        const dmgMatch = atk.info.match(/(\d+)/);
-        const dmg = dmgMatch ? parseInt(dmgMatch[1], 10) : 0;
-        const energyCost = (atk.info.match(/{[A-Z]}/g) || []).length;
-        if (energyCost > 0) {
-          const ratio = dmg / energyCost;
-          if (ratio > bestRatio) {
-            bestRatio = ratio;
-          }
-        }
-        if (dmg > bestFlatDamage) bestFlatDamage = dmg;
-  
-        if (energyCost === 1 && dmg >= 30) {
-          breakdown.push({ label: "1 énergie - bon rendement", value: 12 });
-          total += 10;
-        } else if (energyCost === 2 && dmg >= 60) {
-          breakdown.push({ label: "2 énergies - bon rendement", value: 8 });
-          total += 8;
-        }
-      });
-  
-      if (bestRatio > 30) {
-        breakdown.push({ label: "Excellent ratio dmg/énergie", value: 12 });
-        total += 12;
-      } else if (bestRatio > 20) {
-        breakdown.push({ label: "Bon ratio dmg/énergie", value: 8 });
-        total += 8;
-      } else if (bestRatio > 15) {
-        breakdown.push({ label: "Ratio dmg/énergie correct", value: 4 });
-        total += 4;
-      }
-    }
-  
-    // Tank / fragile
-    const hp = parseInt(card.hp || '0', 10);
-    if (tankThresholds) {
-      const { low, high } = tankThresholds;
-      if (hp >= high) {
-        breakdown.push({ label: "Tank (haut PV)", value: 10 });
-        total += 10;
-      } else if (hp <= low) {
-        breakdown.push({ label: "Fragile (bas PV)", value: -8 });
-        total -= 8;
-      }
-    }
-  
-    return { total, breakdown };
+// Pondération paramétrable des critères
+export const weights = {
+  energyGain: 50,
+  manaLeakUnit: -20,
+  discardAllEnergy: -20,
+  flipCoin: -5,
+  conditionalFail: -10,
+  polyvalentBonus: 10,
+  benchDamage: 10,
+  healAll: 12,
+  healSelf: 8,
+  statusEffect: 6,
+  discardFromDeck: -12,
+  cantUse: -8,
+};
+
+export function getTalentScoreWithBreakdown(card) {
+  let total = 0;
+  const breakdown = [];
+
+  const rawText = [
+    ...(card.ability || []).map(a => a.info + ' ' + (a.effect || '')),
+    ...(card.attack || []).map(a => a.info + ' ' + (a.effect || '')),
+    card.text || ""
+  ].join(' ').toLowerCase();
+
+  const fullText = stripHtml(rawText);
+
+  // Énergie gagnée
+  const energyGainPattern = /take (?:a|\d+)?[^\.]*?energy from your energy zone/i;
+  if (energyGainPattern.test(fullText)) {
+    breakdown.push({ label: 'Energy Gain', value: weights.energyGain });
+    total += weights.energyGain;
   }
+
+  // Mana Leak (énergie défaussée)
+  const manaLeakMatch = fullText.match(/discard (\d+)\s*{[^}]+}\s*energy from this/i);
+  if (manaLeakMatch) {
+    const val = parseInt(manaLeakMatch[1], 10) * weights.manaLeakUnit;
+    breakdown.push({ label: 'Mana Leak', value: val });
+    total += val;
+  }
+
+  // Défausse toutes les énergies
+  if (/discard all energy/i.test(fullText)) {
+    breakdown.push({ label: 'Discard All Energy', value: weights.discardAllEnergy });
+    total += weights.discardAllEnergy;
+  }
+
+  // Flip de pièce
+  if (/flip a coin/i.test(fullText)) {
+    breakdown.push({ label: 'Has RNG (Coin)', value: weights.flipCoin });
+    total += weights.flipCoin;
+  }
+
+  // Conditionnels faibles
+  if (/only if|does nothing if|if you have less/i.test(fullText)) {
+    breakdown.push({ label: 'Conditional Penalty', value: weights.conditionalFail });
+    total += weights.conditionalFail;
+  }
+
+  // Polyvalence (plusieurs attaques)
+  if ((card.attack?.length || 0) >= 2) {
+    breakdown.push({ label: 'Polyvalent (2+ attacks)', value: weights.polyvalentBonus });
+    total += weights.polyvalentBonus;
+  }
+
+  // Dégâts au banc
+  if (/damage.*bench|bench.*damage/i.test(fullText)) {
+    breakdown.push({ label: 'Bench Damage', value: weights.benchDamage });
+    total += weights.benchDamage;
+  }
+
+  // Heal all
+  if (/heal.*all.*pokemon/i.test(fullText)) {
+    breakdown.push({ label: 'Heal All Pokémon', value: weights.healAll });
+    total += weights.healAll;
+  }
+
+  // Heal self
+  if (/heal.*this.*pokemon/i.test(fullText)) {
+    breakdown.push({ label: 'Heal Self', value: weights.healSelf });
+    total += weights.healSelf;
+  }
+
+  // Effets de statut
+  if (/poisoned|burned|asleep|paralyzed|confused/i.test(fullText)) {
+    breakdown.push({ label: 'Status Effect', value: weights.statusEffect });
+    total += weights.statusEffect;
+  }
+
+  // Défausse de son deck
+  if (/discard.*your deck/i.test(fullText)) {
+    breakdown.push({ label: 'Discard From Deck', value: weights.discardFromDeck });
+    total += weights.discardFromDeck;
+  }
+
+  // Ne peut pas attaquer ou utiliser l'effet
+  if (/can't use/i.test(fullText)) {
+    breakdown.push({ label: 'Restriction (can\'t use)', value: weights.cantUse });
+    total += weights.cantUse;
+  }
+
+  return { total, breakdown };
+}
   
   export function computeTankThresholds(cards) {
     const hps = cards
