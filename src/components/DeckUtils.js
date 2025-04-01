@@ -1,5 +1,6 @@
 // src/components/DeckUtils.js
 import trainerCards from '../data/trainerData';
+import { store } from '../store/store';
 
 export const MANDATORY_CARDS = trainerCards.filter(c => c.alwaysInclude);
 const trioPsychic = ['Mesprit', 'Uxie', 'Azelf'];
@@ -17,24 +18,10 @@ export function stripHtml(text) {
 export function getTalentScore(card) {
     return getTalentScoreWithBreakdown(card).total;
   }
-  
-// Pondération paramétrable des critères
-export const weights = {
-  energyGain: 50,
-  manaLeakUnit: -20,
-  discardAllEnergy: -20,
-  flipCoin: -5,
-  conditionalFail: -10,
-  polyvalentBonus: 10,
-  benchDamage: 10,
-  healAll: 12,
-  healSelf: 8,
-  statusEffect: 6,
-  discardFromDeck: -12,
-  cantUse: -8,
-};
+
 
 export function getTalentScoreWithBreakdown(card) {
+  const weights = store.getState().weights;
   let total = 0;
   const breakdown = [];
 
@@ -46,14 +33,11 @@ export function getTalentScoreWithBreakdown(card) {
 
   const fullText = stripHtml(rawText);
 
-  // Énergie gagnée
-  const energyGainPattern = /take (?:a|\d+)?[^\.]*?energy from your energy zone/i;
-  if (energyGainPattern.test(fullText)) {
+  if (/take (?:a|\d+)?[^\.]*?energy from your energy zone/i.test(fullText)) {
     breakdown.push({ label: 'Energy Gain', value: weights.energyGain });
     total += weights.energyGain;
   }
 
-  // Mana Leak (énergie défaussée)
   const manaLeakMatch = fullText.match(/discard (\d+)\s*{[^}]+}\s*energy from this/i);
   if (manaLeakMatch) {
     const val = parseInt(manaLeakMatch[1], 10) * weights.manaLeakUnit;
@@ -61,61 +45,51 @@ export function getTalentScoreWithBreakdown(card) {
     total += val;
   }
 
-  // Défausse toutes les énergies
   if (/discard all energy/i.test(fullText)) {
     breakdown.push({ label: 'Discard All Energy', value: weights.discardAllEnergy });
     total += weights.discardAllEnergy;
   }
 
-  // Flip de pièce
   if (/flip a coin/i.test(fullText)) {
     breakdown.push({ label: 'Has RNG (Coin)', value: weights.flipCoin });
     total += weights.flipCoin;
   }
 
-  // Conditionnels faibles
   if (/only if|does nothing if|if you have less/i.test(fullText)) {
     breakdown.push({ label: 'Conditional Penalty', value: weights.conditionalFail });
     total += weights.conditionalFail;
   }
 
-  // Polyvalence (plusieurs attaques)
   if ((card.attack?.length || 0) >= 2) {
     breakdown.push({ label: 'Polyvalent (2+ attacks)', value: weights.polyvalentBonus });
     total += weights.polyvalentBonus;
   }
 
-  // Dégâts au banc
   if (/damage.*bench|bench.*damage/i.test(fullText)) {
     breakdown.push({ label: 'Bench Damage', value: weights.benchDamage });
     total += weights.benchDamage;
   }
 
-  // Heal all
   if (/heal.*all.*pokemon/i.test(fullText)) {
     breakdown.push({ label: 'Heal All Pokémon', value: weights.healAll });
     total += weights.healAll;
   }
 
-  // Heal self
   if (/heal.*this.*pokemon/i.test(fullText)) {
     breakdown.push({ label: 'Heal Self', value: weights.healSelf });
     total += weights.healSelf;
   }
 
-  // Effets de statut
   if (/poisoned|burned|asleep|paralyzed|confused/i.test(fullText)) {
     breakdown.push({ label: 'Status Effect', value: weights.statusEffect });
     total += weights.statusEffect;
   }
 
-  // Défausse de son deck
   if (/discard.*your deck/i.test(fullText)) {
     breakdown.push({ label: 'Discard From Deck', value: weights.discardFromDeck });
     total += weights.discardFromDeck;
   }
 
-  // Ne peut pas attaquer ou utiliser l'effet
   if (/can't use/i.test(fullText)) {
     breakdown.push({ label: 'Restriction (can\'t use)', value: weights.cantUse });
     total += weights.cantUse;

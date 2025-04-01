@@ -1,20 +1,12 @@
 // src/data/trainerData.js
 
-const trainerCards = [
-    {
-      name: "Professor's Research",
-      score: 100,
-      alwaysInclude: true,
-      maxCount: 2,
-      description: "Indispensable, pioche 2 cartes."
-    },
-    {
-      name: "Poké Ball",
-      score: 95,
-      alwaysInclude: true,
-      maxCount: 2,
-      description: "Pioche les Pokémon de base."
-    },
+export const MANDATORY_CARDS = [
+  { name: "Professor’s Research", maxCount: 2 },
+  { name: "Poké Ball", maxCount: 2 },
+];
+
+const allTrainers = [
+  ...MANDATORY_CARDS,
     {
       name: "Misty",
       score: 95,
@@ -138,5 +130,5 @@ const trainerCards = [
     // Tu peux continuer à enrichir...
   ];
   
-  export default trainerCards;
+  export default allTrainers;
   

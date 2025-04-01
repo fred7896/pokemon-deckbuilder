@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { evaluateCard, getTalentScoreWithBreakdown } from '../components/DeckUtils';
+import { Link } from 'react-router-dom';
 
 const ScoringReportView = () => {
   const { allCards } = useSelector((state) => state.cards);
@@ -19,6 +20,11 @@ const ScoringReportView = () => {
   return (
     <div className="container">
       <h1>Rapport de Scoring</h1>
+      <div className="actions">
+        <Link className="btn" to="/">Retour</Link>
+        <Link className="btn" to="/meta">Meta</Link>
+        <Link className="btn" to="/weights">⚖️ Éditeur de Poids</Link>
+      </div>
       <table>
         <thead>
           <tr>
