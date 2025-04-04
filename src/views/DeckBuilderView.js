@@ -1,86 +1,105 @@
 // src/views/DeckBuilderView.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { generateOptimizedDeckModular } from '../logic/generateOptimizedDeckModular';
 import CardDisplay from '../components/CardDisplay';
 
 const DeckBuilderView = () => {
   const { allCards } = useSelector((state) => state.cards);
-  const [selectedColor, setSelectedColor] = useState(null);
-  const [selectedDeckIndex, setSelectedDeckIndex] = useState(0);
+  const [selectedColor, setSelectedColor] = useState('');
+  const [deckResult, setDeckResult] = useState({ deck: [], stats: {} });
   const [hand, setHand] = useState([]);
   const [exportText, setExportText] = useState('');
 
-  const deckResult = generateOptimizedDeckModular(allCards, selectedColor);
-  const deck = deckResult.deck || [];
-  const debugLog = deckResult.debugLog || [];
+  useEffect(() => {
+    if (allCards.length) {
+      const result = generateOptimizedDeckModular(allCards, selectedColor || null);
+      setDeckResult(result);
 
-  const colors = Array.from(new Set(allCards.map(c => c.color).filter(Boolean))).sort();
+    }
+  }, [allCards, selectedColor]);
 
   const generateHand = () => {
-    const shuffled = [...deck].sort(() => 0.5 - Math.random());
-    setHand(shuffled.slice(0, 5));
+    const isValidHand = (hand) =>
+      hand.some(card => card.type === 'Pokemon' && card.stage === 'Basic');
+  
+    let hand = [];
+    let attempts = 0;
+    do {
+      const shuffled = [...deckResult.deck].sort(() => 0.5 - Math.random());
+      hand = shuffled.slice(0, 5);
+      attempts++;
+    } while (!isValidHand(hand) && attempts < 100);
+  
+    setHand(hand);
   };
+  
 
   const exportDeck = () => {
-    const grouped = deck.reduce(
-      (acc, card) => {
-        const group = card.type === 'Pokemon' ? 'Pokémon' : 'Autres';
-        if (!acc[group]) acc[group] = [];
-        acc[group].push(card);
-        return acc;
-      },
-      {}
-    );
-
-    let text = '';
-    Object.entries(grouped).forEach(([group, cards]) => {
-      text += `# ${group}\n`;
-      const countMap = {};
-      cards.forEach(c => {
-        countMap[c.name] = (countMap[c.name] || 0) + 1;
-      });
-      Object.entries(countMap).forEach(([name, count]) => {
-        text += `${count}x ${name}\n`;
-      });
-      text += '\n';
+    const countMap = {};
+    deckResult.deck.forEach((card) => {
+      countMap[card.name] = (countMap[card.name] || 0) + 1;
     });
-    setExportText(text.trim());
+    const lines = Object.entries(countMap).map(([name, count]) => `${count}x ${name}`);
+    setExportText(lines.join('\n'));
   };
 
+  const colorOptions = Array.from(new Set(allCards.map(c => c.color).filter(Boolean)));
+  const pokemon = deckResult.deck.filter(c => c.type === 'Pokemon');
+  const trainers = deckResult.deck.filter(c => c.type !== 'Pokemon');
+  // console.log(JSON.stringify(deckResult.stats));
   return (
+    
     <div className="container">
-      <h1>🔧 Deck Builder</h1>
+      <h1>Deck Builder</h1>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label>Filtrer par couleur : </label>
-        <select onChange={(e) => setSelectedColor(e.target.value || null)}>
+      <div className="deck-selector">
+        <label>Filtrer par couleur :</label>
+        <select onChange={(e) => setSelectedColor(e.target.value || '')} value={selectedColor}>
           <option value="">Toutes</option>
-          {colors.map((color, i) => (
-            <option key={i} value={color}>
-              {color.charAt(0).toUpperCase() + color.slice(1)}
-            </option>
+          {colorOptions.map((color, i) => (
+            <option key={i} value={color}>{color}</option>
           ))}
         </select>
       </div>
 
-      <button onClick={generateHand}>🎴 Simuler une main</button>
-      <button onClick={exportDeck} style={{ marginLeft: '1rem' }}>📤 Exporter le deck</button>
+      <div className="deck-characteristics">
+        <h4>Caractéristiques du deck</h4>
+        <ul>
+          <li>Moyenne HP : {deckResult.stats.avgHP?.toFixed(1)}</li>
+          <li>Moyenne Retraite : {deckResult.stats.avgRetreat?.toFixed(1)}</li>
+          <li>Tank présent : {deckResult.stats.potentialTank ? 'Oui' : 'Non'}</li>
+          <li>Besoin de Leaf : {deckResult.stats.needsLeaf ? 'Oui' : 'Non'}</li>
+          <li>Palier 1 faible : {deckResult.stats.lowDamagePalier1 ? 'Oui' : 'Non'}</li>
+          <li>
+            Score total des Pokémon :
+            {
+              deckResult.deck
+                .filter(c => c.type === 'Pokemon')
+                .reduce((sum, c) => sum + (parseFloat(c.score) || 0), 0)
+                .toFixed(0)
+            }
+          </li>
+        </ul>
+      </div>
 
-      <h2>Deck généré ({deck.length} cartes)</h2>
-
-      <h3>Pokémon</h3>
+      <h2>Pokemons</h2>
       <div className="grid">
-        {deck.filter(c => c.type === 'Pokemon').map((card, index) => (
+        {pokemon.map((card, index) => (
           <CardDisplay key={index} card={card} count={1} />
         ))}
       </div>
 
-      <h3>Trainers et autres</h3>
+      <h2>Trainers</h2>
       <div className="grid">
-        {deck.filter(c => c.type !== 'Pokemon').map((card, index) => (
+        {trainers.map((card, index) => (
           <CardDisplay key={index} card={card} count={1} />
         ))}
+      </div>
+
+      <div className="actions">
+        <button onClick={generateHand}>Simuler une main</button>
+        <button onClick={exportDeck}>Exporter le deck</button>
       </div>
 
       {hand.length > 0 && (
@@ -100,26 +119,9 @@ const DeckBuilderView = () => {
           <pre>{exportText}</pre>
         </div>
       )}
-
-      <h3>🪪 Log de construction</h3>
-      <table border="1" cellPadding="4" cellSpacing="0">
-        <thead>
-          <tr>
-            <th>Carte</th>
-            <th>Ajoutée par</th>
-          </tr>
-        </thead>
-        <tbody>
-          {debugLog.map((entry, i) => (
-            <tr key={i}>
-              <td>{entry.name}</td>
-              <td>{entry.source}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 };
 
 export default DeckBuilderView;
+

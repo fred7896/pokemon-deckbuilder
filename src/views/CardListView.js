@@ -2,7 +2,6 @@
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchCards } from '../store/cardsSlice';
-import { Link } from 'react-router-dom';
 import CardDisplay from '../components/CardDisplay';
 
 const CardListView = () => {
@@ -16,10 +15,7 @@ const CardListView = () => {
     return (
         <div className="container">
             <h1>Liste des Cartes</h1>
-            <div className="actions">
-                <Link className="btn" to="/deckbuilder">Deck Builder</Link>
-                <Link className="btn" to="/meta">Meta</Link>
-            </div>
+
             {status === 'loading' && <p>Chargement...</p>}
             {status === 'failed' && <p>Erreur : {error}</p>}
 

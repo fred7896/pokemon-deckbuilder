@@ -1,0 +1,17 @@
+.app-layout {
+    display: flex;
+    min-height: 100vh;
+  }
+  
+  .main-nav {
+    width: 200px;
+    background: #f8f8f8;
+    padding: 1rem;
+    border-right: 1px solid #ccc;
+  }
+  
+  .app-content {
+    flex-grow: 1;
+    padding: 2rem;
+  }
+  

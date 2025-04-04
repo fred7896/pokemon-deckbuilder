@@ -14,6 +14,7 @@ const defaultWeights = {
   statusEffect: 6,
   discardFromDeck: -12,
   cantUse: -8,
+  removeEnergy: 20,
 };
 
 const stored = localStorage.getItem('weights');

@@ -15,6 +15,48 @@ export function stripHtml(text) {
   return div.textContent || div.innerText || "";
 }
 
+export function countEnergySymbols(infoString) {
+  const energyMap = {};
+
+  // Match tous les groupes d'énergie comme {RR} ou {G}
+  const matches = infoString.match(/{([A-Z]+)}/g);
+  if (!matches) return energyMap;
+
+  matches.forEach(group => {
+    const raw = group.replace(/[{}]/g, ''); // ex: "RR"
+    raw.split('').forEach(symbol => {
+      energyMap[symbol] = (energyMap[symbol] || 0) + 1;
+    });
+  });
+
+  return energyMap;
+}
+
+function getEnergyProfile(card) {
+  const energyTypes = new Set();
+
+  if (!Array.isArray(card.attack)) return {
+    isMulticolor: false,
+    isIncolore: false,
+    allTypes: []
+  };
+
+  card.attack.forEach(atk => {
+    const symbols = countEnergySymbols(atk.info);
+    Object.keys(symbols).forEach(symbol => {
+      if (symbol !== 'C') energyTypes.add(symbol);
+    });
+  });
+
+  const typeCount = energyTypes.size;
+
+  return {
+    isMulticolor: typeCount > 1,
+    isColorless: typeCount === 0,
+    allTypes: Array.from(energyTypes)
+  };
+}
+
 export function getTalentScore(card) {
     return getTalentScoreWithBreakdown(card).total;
   }
@@ -45,9 +87,52 @@ export function getTalentScoreWithBreakdown(card) {
     total += val;
   }
 
-  if (/discard all energy/i.test(fullText)) {
-    breakdown.push({ label: 'Discard All Energy', value: weights.discardAllEnergy });
-    total += weights.discardAllEnergy;
+  // Case: "Discard all {X} Energy from this Pokémon"
+  if (/discard all\s*{[^}]+}\s*energy from this/i.test(fullText)) {
+    // console.log("Discard all energy from this Pokémon")
+    // console.log(card.name);
+    // Trouver l'attaque avec le plus grand coût en énergie
+    const maxEnergyCost = Math.max(
+      ...(Array.isArray(card.attack) ? card.attack.map(atk => {
+        const matches = atk.info.match(/{[A-Z]+}/g);
+        return matches ? (matches[0].length - 2) : 0;
+      }) : [0])
+  );
+
+  // Case: "Discard X random Energy from this Pokémon"
+const discardRandomEnergyMatch = fullText.match(/discard (\d+)\s+(?:random\s+)?energy from this/i);
+if (discardRandomEnergyMatch) {
+  console.log("Discard X random energy from this Pokémon")
+  console.log(card.name);
+  const energyCount = parseInt(discardRandomEnergyMatch[1], 10);
+  const value = -energyCount * weights.manaLeakUnit;
+  breakdown.push({ label: "Discard Random Energy", value });
+  total += value;
+}
+
+  const value = maxEnergyCost * weights.discardAllEnergy;
+  breakdown.push({ label: "Discard All Energy", value });
+  total += value;
+}
+
+// Case: "Discard all Energy from this Pokémon"
+if (/discard all energy from this/i.test(fullText)) {
+  // Prendre le coût de la plus grosse attaque
+  const maxEnergyCost = Math.max(
+    ...(Array.isArray(card.attack) ? card.attack.map(atk => {
+      const matches = atk.info.match(/{[A-Z]+}/g);
+      return matches ? (matches[0].length - 2) : 0;
+    }) : [0])
+  );
+
+  const value = maxEnergyCost * weights.discardAllEnergy;
+  breakdown.push({ label: "Discard All Energy", value });
+  total += value;
+}
+
+
+  if(/remove.*energy.*from.*opponent/i.test(fullText)) {
+    breakdown.push({ label: 'Remove Energy from Opponent', value: weights.removeEnergy });  
   }
 
   if (/flip a coin/i.test(fullText)) {
@@ -55,10 +140,6 @@ export function getTalentScoreWithBreakdown(card) {
     total += weights.flipCoin;
   }
 
-  if (/only if|does nothing if|if you have less/i.test(fullText)) {
-    breakdown.push({ label: 'Conditional Penalty', value: weights.conditionalFail });
-    total += weights.conditionalFail;
-  }
 
   if ((card.attack?.length || 0) >= 2) {
     breakdown.push({ label: 'Polyvalent (2+ attacks)', value: weights.polyvalentBonus });
@@ -94,6 +175,57 @@ export function getTalentScoreWithBreakdown(card) {
     breakdown.push({ label: 'Restriction (can\'t use)', value: weights.cantUse });
     total += weights.cantUse;
   }
+  
+  if (/can't attack|can’t attack|cannot attack/i.test(fullText)) {
+    breakdown.push({ label: "Can't attack", value: -40 });
+    total -= 40;
+  }
+  
+
+  if (Array.isArray(card.attack)) {
+    const atkWithNoEffect = card.attack.find(atk => /this attack does nothing/i.test(atk.effect || ''));
+    if (atkWithNoEffect) {
+      const damageMatch = atkWithNoEffect.info.match(/(\d+)/);
+      const dmg = damageMatch ? parseInt(damageMatch[1], 10) : 0;
+      const malus = -Math.round(dmg * 0.5);
+      breakdown.push({ label: "Attack Does Nothing", value: malus });
+      total += malus;
+    }
+  }
+
+  const selfDamageMatch = fullText.match(/does (\d+) damage to itself/); // ok
+  if (selfDamageMatch) {
+    const val = -parseInt(selfDamageMatch[1], 10);
+    breakdown.push({ label: "Self Damage", value: val });
+    total += val;
+  }
+
+  const bonusDamageMatch = fullText.match(/this attack does (\d+) more damage/i); // ok
+  if (bonusDamageMatch) {
+    const val = parseInt(bonusDamageMatch[1], 10);
+    breakdown.push({ label: "Bonus Conditional Damage", value: val *0.5 });
+    total += val;
+  }
+
+  const opponentDamageMatch = fullText.match(/do (\d+) damage to .*opponent/i); // ok pour darkrai
+  if (opponentDamageMatch) {
+    const val = parseInt(opponentDamageMatch[1], 10);
+    breakdown.push({ label: "Direct Opponent Damage", value: val });
+    total += val;
+  }
+
+  const attackingDamageMatch = fullText.match(/do (\d+) damage to .*attacking/i); //ok pour Druddigon
+  if (attackingDamageMatch) {
+    const val = parseInt(attackingDamageMatch[1], 10);
+    breakdown.push({ label: "Damage to Attacking", value: val });
+    total += val;
+  }
+
+  if (fullText.includes("discard a random energy from your opponent")) {
+    breakdown.push({ label: "Disrupt Opponent Energy", value: 40 });
+    total += 20;
+  }
+
 
   return { total, breakdown };
 }
@@ -110,12 +242,15 @@ export function getTalentScoreWithBreakdown(card) {
       high: hps[2 * third]
     };
   }
+
+
   
 
   export function evaluateCard(card, meta = { averagePV: 150 }) {
     const isBasic = card.stage === "Basic";
+    const isStage1 = card.stage === "Stage 1";
+    const isStage2 = card.stage === "Stage 2";
     const isEx = card.name.toLowerCase().includes("ex");
-    const hasEvolution = !!card.prew_stage_name;
     const pv = parseInt(card.hp || 0, 10);
     const attacks = Array.isArray(card.attack) ? card.attack : [];
   
@@ -142,31 +277,23 @@ export function getTalentScoreWithBreakdown(card) {
       damageByTier[tier] += weighted;
     });
   
-    const avgDamage = weightedDamage;
-  
-    const energyTypes = new Set();
-    attacks.forEach(atk => {
-      const types = atk.info.match(/{([A-Z])}/g);
-      if (types) types.forEach(t => energyTypes.add(t));
-    });
-    const typeCount = [...energyTypes].filter(t => t !== "{C}").length;
-    const isMonoType = typeCount <= 1;
-    const isIncolore = typeCount === 0;
+    const energyProfile = getEnergyProfile(card);
+    // console.log(card.name);
+    // console.log(energyProfile);
   
     const { total: talentScore, breakdown: talentBreakdown } = getTalentScoreWithBreakdown(card);
   
     const detail = [];
   
-    // detail.push({ label: "Dégâts pondérés (paliers)", value: avgDamage });
     damageByTier.forEach((v, i) => {
         if (v > 0) detail.push({ label: `→ Palier ${i} énergie(s)`, value: v });
       });
     detail.push({ label: "Points de vie", value: pv * 0.2 });
-    if (isIncolore) detail.push({ label: "Flexible (0 couleurs)", value: 15 });
-    if (isMonoType) detail.push({ label: "Mono-couleur", value: 10 });
-    if (typeCount > 2) detail.push({ label: "Trop de couleurs", value: -40 });
-    if (isBasic) detail.push({ label: "Carte de base", value: 15 });
-    else if (hasEvolution) detail.push({ label: "Carte avec évolution", value: -40 });
+    if (energyProfile.isColorless) detail.push({ label: "Flexible (0 couleurs)", value: 10 });
+    if (energyProfile.isMulticolor) detail.push({ label: "Multicolor", value: -40 });
+    if (isBasic) detail.push({ label: "Carte de base", value: 10 });
+    else if (isStage1) detail.push({ label: "Carte de stade 1", value: -20 });
+    else if (isStage2) detail.push({ label: "Carte de stade 2", value: -50 });
     if (isEx) detail.push({ label: "Carte EX malus", value: -20 });
   
     talentBreakdown.forEach(e => detail.push(e));

@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { evaluateCard, getTalentScoreWithBreakdown } from '../components/DeckUtils';
-import { Link } from 'react-router-dom';
 
 const ScoringReportView = () => {
   const { allCards } = useSelector((state) => state.cards);
@@ -17,14 +16,22 @@ const ScoringReportView = () => {
   })
   .sort((a, b) => b.score - a.score);
 
+  const uniqueByNameAndSet = [];
+  const seen = new Set();
+
+  for (const card of scoredCards) {
+    if (card.set_code === "PROMO") continue;
+    const key = `${card.name}-${card.set_code}`;
+    if (!seen.has(key)) {
+      uniqueByNameAndSet.push(card);
+      seen.add(key);
+    }
+  }
+
   return (
     <div className="container">
       <h1>Rapport de Scoring</h1>
-      <div className="actions">
-        <Link className="btn" to="/">Retour</Link>
-        <Link className="btn" to="/meta">Meta</Link>
-        <Link className="btn" to="/weights">⚖️ Éditeur de Poids</Link>
-      </div>
+
       <table>
         <thead>
           <tr>
@@ -34,10 +41,13 @@ const ScoringReportView = () => {
           </tr>
         </thead>
         <tbody>
-        {scoredCards.map((card, index) => (
+        {uniqueByNameAndSet.map((card, index) => 
+          (
             <React.Fragment key={index}>
                 <tr>
                 <td>{card.name}</td>
+                <td>{card.set_name}</td>
+                {/* <td>{card.id}</td> */}
                 <td>{card.score.toFixed(1)}</td>
                 <td>
                     <button
@@ -52,7 +62,7 @@ const ScoringReportView = () => {
 
                 {openDetailIndex === index && (
                 <tr>
-                    <td colSpan="3">
+                    <td colSpan="4">
                     <div style={{ padding: '0.5em 1em', backgroundColor: '#f9f9f9' }}>
                         <h4>⚔️ Score global</h4>
                         <ul>

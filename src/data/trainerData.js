@@ -5,8 +5,7 @@ export const MANDATORY_CARDS = [
   { name: "Poké Ball", maxCount: 2 },
 ];
 
-const allTrainers = [
-  ...MANDATORY_CARDS,
+export const trainerCards = [
     {
       name: "Misty",
       score: 95,
@@ -129,6 +128,70 @@ const allTrainers = [
     },
     // Tu peux continuer à enrichir...
   ];
-  
-  export default allTrainers;
+
+  export default trainerCards;
+
+  export const remaining = [
+    {
+      name: "Rocky Helmet",
+      score: 80,
+      condition: (deck) => deck.hasTank,
+      maxCount: 2,
+      description: "Reflète les dégâts subis. À jouer sur les tanks."
+    },
+    {
+      name: "Sabrina",
+      score: 75,
+      maxCount: 2,
+      description: "Switch. Très utile en combo ou défensif."
+    },
+
+    {
+      name: "Iono",
+      score: 70,
+      maxCount: 2,
+      description: "Reset de main. Utile dans les decks évolutions."
+    },
+    {
+      name: "Giovanni",
+      score: 65,
+      maxCount: 1,
+      description: "+10 dégats. Faible mais jouable."
+    },
+    {
+      name: "Blue",
+      score: 60,
+      condition: (deck) => deck.lowHP,
+      maxCount: 1,
+      description: "+10 défense. Situations spécifiques."
+    },
+    {
+      name: "Dawn",
+      score: 85,
+      condition: (deck) => deck.contains(['Manaphy', 'Dialga ex', 'Leafeon ex']),
+      maxCount: 1,
+      description: "Déplace les énergies. Synergie."
+    },
+    {
+      name: "Cyrus",
+      score: 80,
+      condition: (deck) => deck.damagesBench,
+      maxCount: 2,
+      description: "Switch défensif, très joué."
+    },
+    {
+      name: "Pokémon Communication",
+      score: 70,
+      condition: (deck) => deck.hasEvolutions,
+      maxCount: 2,
+      description: "Permet de cycler des Pokémon en main."
+    },
+    {
+      name: "Giant Cape",
+      score: 85,
+      condition: (deck) => deck.hasExWithLowHP,
+      maxCount: 2,
+      description: "Ajoute des PV. Souvent utilisé sur EX faibles."
+    },
+  ];
   

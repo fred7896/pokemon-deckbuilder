@@ -1,7 +1,18 @@
 // src/logic/generateOptimizedDeckModular.js
-import { normalize } from '../components/DeckUtils';
-import trainerCards, { MANDATORY_CARDS } from '../data/trainerData';
+import { normalize, evaluateCard } from '../components/DeckUtils';
+import { remaining , MANDATORY_CARDS } from '../data/trainerData';
 import { getEvolutionLine } from './evolutionUtils';
+import { calculateStandards, integrateStandardsIntoDeck } from '../utils/getStandards';
+
+const debugLog = [];
+const trioPsychic = ['Mesprit', 'Uxie', 'Azelf'];
+const fossilMap = {
+  "Aerodactyl": "Old Amber",
+  "Omanyte": "Helix Fossil",
+  "Kabuto": "Dome Fossil",
+  "Shieldon": "Armor Fossil",
+  "Cranidos": "Skull Fossil",
+};
 
 function prepareCardPool(cards, colorFilter) {
   const uniqueMap = new Map();
@@ -9,13 +20,22 @@ function prepareCardPool(cards, colorFilter) {
     const key = normalize(card.name);
     if (!uniqueMap.has(key)) uniqueMap.set(key, card);
   });
-  return [...uniqueMap.values()].filter(c =>
+
+  const allUnique = [...uniqueMap.values()].map(card => {
+    if (card.type === "Pokemon") {
+      const evaluation = evaluateCard(card);
+      return { ...card, score: evaluation.score, detail: evaluation.detail };
+    }
+    return { ...card, score: 0, detail: [] };
+  });
+
+  return allUnique.filter(c =>
     !colorFilter || !c.color || c.color === colorFilter || c.color === "Colorless"
   );
 }
 
-function addCard(card, context, max = 2, source = 'unknown') {
-  const { deck, cardCount, addedNames, debugLog } = context;
+function addCard(card, context, max = 2, source = '') {
+  const { deck, cardCount, addedNames } = context;
   const count = cardCount[card.name] || 0;
   if (count >= max || deck.length >= 20) return;
   deck.push({ ...card });
@@ -29,33 +49,82 @@ function addMandatoryCards(context) {
     const found = context.pool.find(c => normalize(c.name) === normalize(req.name));
     if (found) {
       for (let i = 0; i < req.maxCount; i++) {
-        addCard(found, context, 2, 'Mandatory');
+        addCard(found, context, req.maxCount, 'Mandatory');
       }
     }
   });
 }
 
-function addKeyPokemonFamilies(context) {
-  const potentialFamilies = context.pool
-    .filter(c => c.type === 'Pokemon')
-    .filter(c => c.stage === 'Stage 2' || c.stage === 'Stage 1' || c.stage === 'Basic')
-    .sort((a, b) => (parseFloat(b.score || 0) - parseFloat(a.score || 0)));
+function addKeyEvolutionLines(context) {
+  const candidates = context.pool
+    .filter(c => c.type === 'Pokemon' && typeof c.score === 'number')
+    .sort((a, b) => b.score - a.score);
 
-  for (const card of potentialFamilies) {
-    if (context.deck.length >= 20) break;
-    const family = getEvolutionLine(card, context.pool);
-    const root = family[0]?.name || card.name;
-    if (context.evolutionFamilies.has(root)) continue;
-    if (context.evolutionFamilies.size >= 2) break;
+  const selected = [];
+  for (const c of candidates) {
+    const norm = normalize(c.name);
+    if (!selected.find(p => normalize(p.name) === norm)) {
+      selected.push(c);
+    }
+    if (selected.length >= 2) break;
+  }
 
-    for (const evoCard of family) {
-      if (context.deck.length >= 20) break;
-      addCard(evoCard, context, 2, 'Evolution');
+    // Check if trioPsychic is involved
+    const hasTrio = selected.some(c => trioPsychic.includes(c.name));
+    if (hasTrio) {
+      trioPsychic.forEach(name => {
+        const card = context.pool.find(c => c.name === name);
+        if (card) {
+          addCard(card, context, 2, 'Trio Psychic');
+          addCard(card, context, 2, 'Trio Psychic');
+        }
+      });
+      return; // Skip normal evolution adding logic if trioPsychic is added
     }
 
+  selected.forEach(card => {
+    const family = getEvolutionLine(card, context.pool);
+    const root = family[0]?.name || card.name;
+    if (context.evolutionFamilies.has(root)) return;
+    if (context.evolutionFamilies.size >= 2) return;
+
+    const completeLine = [];
+    const stages = ['Basic', 'Stage 1', 'Stage 2'];
+
+    stages.forEach(stage => {
+      const stageCards = family.filter(c => c.stage === stage);
+      stageCards.forEach(c => {
+        completeLine.push(c, c); // 2 exemplaires
+      });
+    });
+
+    // Handle fossils as pseudo-basics
+    if (card.stage === 'Stage 1' && fossilMap[card.name]) {
+      // console.log("Fossil found: ", card.name);
+      const fossilName = fossilMap[card.name];
+      const fossilCard = context.pool.find(c => c.name === fossilName);
+      if (fossilCard) {
+        addCard(fossilCard, context, 2, 'Fossil Base');
+        addCard(fossilCard, context, 2, 'Fossil Base');
+      }
+    } else if (card.stage === 'Stage 2' && fossilMap[card.prew_stage_name]) {
+      // console.log("Fossil found: ", card.prew_stage_name);
+      const fossilName = fossilMap[card.prew_stage_name];
+      const fossilCard = context.pool.find(c => c.name === fossilName);
+      if (fossilCard) {
+        addCard(fossilCard, context, 2, 'Fossil Base');
+        addCard(fossilCard, context, 2, 'Fossil Base');
+      }
+    } else {
+      // console.log("No fossil found for: ", card.name);
+    }
+      
+
+    completeLine.forEach(card => addCard(card, context, 2, 'Key Evolution'));
     context.evolutionFamilies.add(root);
-  }
+  });
 }
+
 
 function addColorSynergyTrainers(context) {
   const synergyMap = {
@@ -72,6 +141,7 @@ function addColorSynergyTrainers(context) {
   synergyMap[color].forEach(name => {
     const found = context.pool.find(c => normalize(c.name) === normalize(name));
     if (found) {
+      addCard(found, context, 2, 'Color Synergy');
       addCard(found, context, 2, 'Color Synergy');
     }
   });
@@ -102,7 +172,8 @@ function addNamedSynergyTrainers(context) {
     if (deckNames.includes(normalize(pokeName)) && !triggered.has(trainerName)) {
       const trainer = context.pool.find(c => normalize(c.name) === normalize(trainerName));
       if (trainer) {
-        addCard(trainer, context, 2, 'Named Synergy');
+        addCard(trainer, context, 2, 'Name Synergy');
+        addCard(trainer, context, 2, 'Name Synergy');
         triggered.add(trainerName);
       }
     }
@@ -110,33 +181,50 @@ function addNamedSynergyTrainers(context) {
 }
 
 function addComplementaryPokemon(context) {
+  const { deck } = context;
   const potentialBasics = context.pool
-    .filter(c => c.type === 'Pokemon' && c.stage === 'Basic')
+    .filter(c => c.type === 'Pokemon' && c.stage === 'Basic' && !trioPsychic.includes(c.name))
     .sort((a, b) => (parseFloat(b.score || 0) - parseFloat(a.score || 0)));
 
+  let slots = 0;
+  // console.log("deck.length");
+  // console.log(deck.length);
+  if (deck.length <= 9) {
+    
+    slots = 2;
+  }
+  else if (deck.length <= 11 && deck.length > 9) {
+    slots = 1;
+  }
+  else {
+    slots = 0;
+  }
+
+  let added = 0;
+  let remaindedSlots = slots;
   for (const card of potentialBasics) {
     if (context.deck.length >= 20) break;
     if (context.addedNames.has(normalize(card.name))) continue;
-    addCard(card, context, 2, 'Complementary');
+    const count = added < slots ? 2 : 1;
+    for (let i = 0; i < count && context.deck.length < 20; i++) {
+      addCard(card, context, 2, 'Complementary');
+      remaindedSlots--;
+    }
+    added++;
+    if (added >= slots) break;
   }
 }
 
+
 function addWeaknessCounters(context) {
-  const { deck, pool } = context;
+  const { deck, pool, standards } = context;
   const avgRetreat = deck.reduce((acc, c) => acc + (parseInt(c.retreat || '0', 10)), 0) / (deck.length || 1);
-  const highRetreat = avgRetreat >= 2;
-  const lowDrawSupport = deck.filter(c => ['Iono', 'Pokémon Communication'].includes(c.name)).length < 2;
 
-  if (highRetreat) {
+  if (avgRetreat > standards.retreat.median) {
     const leaf = pool.find(c => normalize(c.name) === 'leaf');
-    if (leaf) addCard(leaf, context, 2, 'Weakness Counter');
+    if (leaf) addCard(leaf, context, 2, 'Counter Retreat');
   }
-
-  if (lowDrawSupport) {
-    const iono = pool.find(c => normalize(c.name) === 'iono');
-    if (iono) addCard(iono, context, 1, 'Weakness Counter');
-  }
-} 
+}
 
 function addMetaTechs(context) {
   const metaCards = ['Red', 'Team Rocket Grunt', 'Mars'];
@@ -147,8 +235,18 @@ function addMetaTechs(context) {
   }
 }
 
+function completeWithTrainers(context) {
+  for (const card of remaining) {
+    const found = context.pool.find(c => normalize(c.name) === normalize(card.name));
+    if (found && context.deck.length < 20) {
+      addCard(found, context, 1, 'Filler Trainer');
+    }
+  }
+}
+
 export function generateOptimizedDeckModular(cards, colorFilter = null) {
   const pool = prepareCardPool(cards, colorFilter);
+  const standards = calculateStandards(cards);
 
   const context = {
     deck: [],
@@ -158,20 +256,22 @@ export function generateOptimizedDeckModular(cards, colorFilter = null) {
     color: colorFilter,
     cardCount: {},
     evolutionFamilies: new Set(),
-    debugLog: [],
+    standards,
   };
+
+  debugLog.length = 0;
 
   addMandatoryCards(context);
-  addKeyPokemonFamilies(context);
+  addKeyEvolutionLines(context);
   addColorSynergyTrainers(context);
-  addNamedSynergyTrainers(context);
   addComplementaryPokemon(context);
+  addNamedSynergyTrainers(context);
   addWeaknessCounters(context);
   addMetaTechs(context);
+  completeWithTrainers(context);
 
-  return {
-    deck: context.deck.slice(0, 20),
-    debugLog: context.debugLog,
-    color: context.color,
-  };
+  const finalDeck = context.deck.slice(0, 20);
+  const deckStats = integrateStandardsIntoDeck(finalDeck, standards);
+
+  return { deck: finalDeck, stats: deckStats, debugLog };
 }

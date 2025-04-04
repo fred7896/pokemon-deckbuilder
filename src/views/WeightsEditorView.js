@@ -2,7 +2,6 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { updateWeight } from '../store/weightsSlice';
-import { Link } from 'react-router-dom';
 
 const WeightsEditorView = () => {
   const weights = useSelector((state) => state.weights);
@@ -15,13 +14,6 @@ const WeightsEditorView = () => {
   return (
     <div className="container">
       <h1>Éditeur de Poids</h1>
-
-      <div className="actions">
-        <Link className="btn" to="/">Retour</Link>
-        <Link className="btn" to="/report">Rapport</Link>
-        <Link className="btn" to="/meta">Meta</Link>
-        <Link className="btn" to="/deckbuilder">Deck Builder</Link>
-      </div>
 
       <table>
         <thead>
