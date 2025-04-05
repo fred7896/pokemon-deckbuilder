@@ -8,7 +8,7 @@ const CardDisplay = ({ card, count = 1, minimal = false }) => {
       <div className="card-wrapper">
         {count > 1 && <div className="badge">{count}</div>}
         <img
-          src={`https://static.dotgg.gg/pokepocket/card/${card.id}.webp`}
+          src={`/assets/images/${card.id}.webp`}
           alt={card.name}
           className="card-image"
         />

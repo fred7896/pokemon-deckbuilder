@@ -43,3 +43,10 @@ body {
 .btn-group {
   margin: 20px 0;
 }
+
+a {
+  text-decoration: none;
+  &:hover {
+    font-weight: bolder;
+  }
+}

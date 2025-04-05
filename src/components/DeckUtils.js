@@ -15,6 +15,9 @@ export function stripHtml(text) {
   return div.textContent || div.innerText || "";
 }
 
+export const sumCost = (costObj) =>
+  Object.values(costObj).reduce((a, b) => a + b, 0);
+
 export function countEnergySymbols(infoString) {
   const energyMap = {};
 

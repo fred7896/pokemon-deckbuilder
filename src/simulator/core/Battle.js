@@ -67,7 +67,7 @@ export default class Battle {
       player.drawCard();
       this.log(`${player.name} pioche une carte (Tour 1, pas d'énergie).`);
     } else {
-      player.gainEnergy();
+      player.prepareEnergy();
       player.drawCard();
       this.log(`${player.name} pioche une carte et gagne 1 énergie.`);
     }
@@ -83,6 +83,11 @@ export default class Battle {
     const player = this.getCurrentPlayer();
     const opponent = this.getOpponent();
 
+    this.log(`🤖 ${player.name} commence son tour.`);
+
+    (!this.isFirstTurn()) && player.prepareEnergy();
+    player.drawCard();
+
     // Joue un Pokémon sur le banc si possible
     for (let i = player.hand.length - 1; i >= 0; i--) {
       if (player.bench.length < 3) {
@@ -93,8 +98,8 @@ export default class Battle {
       }
     }
 
-    // Attache une énergie à l'actif
-    player.attachEnergyToActive();
+    // Attacher l'énergie intelligemment
+    player.autoAttachEnergy();
 
     // Attaque si possible
     if (player.active && player.active.canAttack()) {

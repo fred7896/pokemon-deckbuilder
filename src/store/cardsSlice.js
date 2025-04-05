@@ -1,7 +1,15 @@
 // src/store/cardsSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
+const useFallbackOnly = true;
+
 export const fetchCards = createAsyncThunk('cards/fetchCards', async () => {
+  if (useFallbackOnly) {
+    const fallback = await fetch('/data/fallbackCards.json');
+    if (!fallback.ok) throw new Error('Échec du chargement du fallback JSON');
+    return await fallback.json();
+  }
+
   try {
     const response = await fetch('http://localhost:5000/api/cards');
     if (!response.ok) throw new Error('API failed');
@@ -13,6 +21,7 @@ export const fetchCards = createAsyncThunk('cards/fetchCards', async () => {
     return await fallback.json();
   }
 });
+
 
 const cardsSlice = createSlice({
   name: 'cards',

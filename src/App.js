@@ -10,6 +10,9 @@ import MetaView from './views/MetaView';
 import ScoringReportView from './views/ScoringReportView';
 import WeightsEditorView from './views/WeightsEditorView';
 import SimulatorView from './views/SimulatorView';
+import DeckBuilderHub from './views/DeckBuilderHub';
+import AutoDeckBuilderView from './views/AutoDeckBuilderView';
+import ManualDeckBuilderView from './views/ManualDeckBuilderView';
 
 
 function App() {
@@ -17,7 +20,10 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route path="/deck-builder" element={<DeckBuilderView />} />
+          <Route path="/deck-builder" element={<DeckBuilderHub />} />
+          <Route path="/deck-builder/manual" element={<ManualDeckBuilderView />} />
+          <Route path="/deck-builder/auto" element={<AutoDeckBuilderView />} />
+          <Route path="/deck-builder/scoring" element={<DeckBuilderView />} />
           <Route path="/card-list" element={<CardListView />} />
           <Route path="/debug" element={<DebugView />} />
           <Route path="/meta" element={<MetaView />} />

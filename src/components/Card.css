@@ -1,0 +1,28 @@
+.card-container {
+    width: 80px;
+    height: auto;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  
+  .card-container:hover {
+    transform: scale(1.05);
+  }
+  
+  .card-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  
+  .grayscale {
+    filter: grayscale(100%);
+    opacity: 0.6;
+  }
+  
+  .highlight {
+    border: 2px solid gold;
+  }
+  

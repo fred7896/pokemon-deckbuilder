@@ -1,29 +1,96 @@
 .main-nav {
-    background-color: #f0f0f0;
-    padding: 1rem;
-    border-right: 1px solid #ccc;
     min-height: 100vh;
   }
   
   .main-nav h2 {
     margin-bottom: 1rem;
   }
+
   
-  .main-nav ul {
+.navigation {
+  margin: 0;
+  border-left: #55a 20px solid;
+  min-height: 100vh;
+  background-color: #212121;
+
+  ul {
     list-style: none;
+    display: block;
+    background-color: #212121;
+    width: 100%;
     padding: 0;
+    margin: 0;
+    font-size: 1.2rem;
   }
-  
-  .main-nav li {
-    margin-bottom: 0.5rem;
+  ul li {
+    margin: 0;
+    padding: 0;
+    
   }
-  
-  .main-nav a {
+  ul li a {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  ul li a, ul li #check-label {
+    height: var(--menuLiHeight);
+    line-height: 80px;
+    vertical-align: middle;
+    display: block;
+    width: 100%;
     text-decoration: none;
-    color: #333;
+    padding-left: 5%;
+    box-sizing: border-box;
+    color: #ddd;
+    border-bottom: #232323 solid 3px;
+    transition: all 0.5s ease;
   }
   
-  .main-nav a:hover {
-    text-decoration: underline;
+  .sub {
+    margin: 0;
+    padding: 0;
+    height: 0;
+    width: 100%;
+    border-left: 20px solid #55f;
+    box-sizing: border-box;
+  }
+  .sub a {
+    color: #ededed;
   }
   
+  #check {
+    display: none;
+  }
+  
+  #check-label:hover, a:hover, #check-label:focus, a:focus {
+    background-color: #607d8b;
+    border-bottom: #607d8b;
+    cursor: pointer;
+  }
+  
+  #check[type=checkbox]:checked ~ .sub {
+    height: calc(var(--menuLiHeight) * 4);
+    pointer-events: all;
+    transition: height 0.2s;
+  }
+  #check[type=checkbox]:checked ~ .sub a {
+    color: #ededed;
+    transition: color 0.2s 0.2s;
+  }
+  
+  #check[type=checkbox]:not(checked) ~ .sub {
+    height: 0;
+    pointer-events: none;
+    transition: height 0.2s 0.2s;
+  }
+  #check[type=checkbox]:not(checked) ~ .sub a {
+    color: rgba(51, 51, 51, 0);
+    transition: color 0.2s;
+  }
+
+}
+
+:root {
+  --menuLiHeight: 80px;
+}
+

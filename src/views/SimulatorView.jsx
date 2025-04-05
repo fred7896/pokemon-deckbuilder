@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import Battle from '../simulator/core/Battle';
 import { availableDecks } from '../simulator/data/sampleDecks';
-import DeckBuilderInline from '../components/DeckBuilderInline';
+// import DeckBuilderInline from '../components/DeckBuilderInline';
 import GameBoard from '../components/GameBoard';
+import { generateMonoEnergyDecks } from '../utils/deckGenerator';
+import Pokemon from '../simulator/core/Pokemon';
+import Deck from '../simulator/core/Deck';
 
 const SimulatorView = () => {
   const [deck1Key, setDeck1Key] = useState("PikachuMix");
@@ -12,12 +16,60 @@ const SimulatorView = () => {
   const [battle, setBattle] = useState(null);
   const [setupDone, setSetupDone] = useState(false);
   const [gameState, setGameState] = useState(null);
+  const [selectingEnergyTarget, setSelectingEnergyTarget] = useState(false);
+  const [selectingRetreatTarget, setSelectingRetreatTarget] = useState(false);
+
+  const manualDeck = useSelector(state => state.decks.deckManual);
+  const autoDeck = useSelector(state => state.decks.deckAuto);
 
   const getDeck = (key) => {
     if (key === 'custom') {
-      return customDeck?.map(p => Object.assign(Object.create(Object.getPrototypeOf(p)), p)) || [];
+      return customDeck?.toArray?.() || [];
     }
-    return availableDecks[key].map(p => Object.assign(Object.create(Object.getPrototypeOf(p)), p));
+    if (key === 'manual' && manualDeck) {
+      return manualDeck.toArray();
+    }
+    if (key === 'auto' && autoDeck) {
+      return autoDeck.toArray();
+    }
+    return availableDecks[key]?.toArray?.() || [];
+  };
+
+  const handleGenerateDecks = () => {
+    const { deck1, deck2, type1, type2 } = generateMonoEnergyDecks();
+    availableDecks['Generated1'] = deck1;
+    availableDecks['Generated2'] = deck2;
+    setDeck1Key('Generated1');
+    setDeck2Key('Generated2');
+    console.log(deck1);
+    console.log(deck2);
+    alert(`Decks générés ! Types : ${type1} vs ${type2}`);
+  };
+
+  const handleCustomDeckBuilt = (rawCards) => {
+    const pokemons = rawCards.map(card => new Pokemon({
+      name: card.name,
+      hp: card.hp,
+      attack_info: card.attack[0].info,
+      retreat: card.retreat || '0'
+    }));
+    const deck = new Deck(pokemons);
+    setCustomDeck(deck);
+  };
+
+
+  const handleAttachEnergy = () => {
+    setSelectingEnergyTarget(true);
+  };
+
+  const attachEnergyTo = (pokemon) => {
+    const player = battle.getCurrentPlayer();
+    if (player.attachEnergyTo(pokemon)) {
+      battle.log(`${player.name} attache une énergie à ${pokemon.name}`);
+      setLogs([...battle.logs]);
+    }
+    setSelectingEnergyTarget(false);
+    setGameState({ player1: battle.player1, player2: battle.player2, phase: battle.phase });
   };
 
   const initializeBattle = () => {
@@ -132,26 +184,7 @@ const SimulatorView = () => {
       setGameState({ player1: battle.player1, player2: battle.player2, phase: battle.phase });
     }
   };
-
-  const handleAttachEnergy = () => {
-    const player = battle.getCurrentPlayer();
-    if (player.energyPool > 0 && player.active) {
-      player.attachEnergyToActive();
-      battle.log(`${player.name} attache 1 énergie à ${player.active.name}.`);
-      setLogs([...battle.logs]);
-      setGameState({ player1: battle.player1, player2: battle.player2, phase: battle.phase });
-    }
-  };
-
-  const handleRetreat = () => {
-    const player = battle.getCurrentPlayer();
-    if (player.active && player.active.retreatCost <= player.energyPool) {
-        player.retreatActive();
-        battle.log(`${player.name} retire ${player.active.name} du poste Actif.`);
-        setLogs([...battle.logs]);
-        setGameState({ player1: battle.player1, player2: battle.player2, phase: battle.phase });
-    }
-  }
+  
 
   const currentPlayer = battle?.getCurrentPlayer();
   const isVictory = gameState?.phase === 'combat' && (gameState.player1.points >= 3 || gameState.player2.points >= 3 ||
@@ -162,13 +195,15 @@ const SimulatorView = () => {
     <div style={{ padding: '1rem' }}>
       <h1>Simulateur de Combat</h1>
 
-      <DeckBuilderInline onDeckBuilt={setCustomDeck} />
+      {/* <DeckBuilderInline onDeckBuilt={handleCustomDeckBuilt} /> */}
 
       <div style={{ display: 'flex', gap: '2rem', marginBottom: '1rem' }}>
         <div>
           <label>Deck Joueur 1 :</label>
           <select value={deck1Key} onChange={(e) => setDeck1Key(e.target.value)}>
             <option value="custom">Deck personnalisé</option>
+            {manualDeck && <option value="manual">Deck manuel sauvegardé</option>}
+            {autoDeck && <option value="auto">Deck auto sauvegardé</option>}
             {Object.keys(availableDecks).map(key => (
               <option key={key} value={key}>{key}</option>
             ))}
@@ -179,12 +214,15 @@ const SimulatorView = () => {
           <label>Deck Joueur 2 :</label>
           <select value={deck2Key} onChange={(e) => setDeck2Key(e.target.value)}>
             <option value="custom">Deck personnalisé</option>
+            {manualDeck && <option value="manual">Deck manuel sauvegardé</option>}
+            {autoDeck && <option value="auto">Deck auto sauvegardé</option>}
             {Object.keys(availableDecks).map(key => (
               <option key={key} value={key}>{key}</option>
             ))}
           </select>
         </div>
 
+        <button onClick={handleGenerateDecks}>⚡ Générer decks mono-énergie</button>
         <button onClick={initializeBattle}>🔄 Nouvelle partie</button>
         <button onClick={startSimulation} disabled={setupDone || !battle}>🚀 Commencer la partie</button>
       </div>
@@ -198,13 +236,43 @@ const SimulatorView = () => {
       {battle && setupDone && battle.controlledPlayers[currentPlayer.name] === 'human' && !isVictory && (
         <div style={{ marginTop: '1rem' }}>
           <h3>Actions du joueur humain</h3>
-          <button onClick={handleRetreat} style={{ marginRight: '1rem' }}>🔄 Retraite du pokemon Actif</button>
+          {!selectingRetreatTarget && (
+          <button onClick={() => setSelectingRetreatTarget(true)} style={{ marginRight: '1rem' }}>🔄 Retraite du pokemon Actif</button>)}
           <button onClick={handlePlaceFromHand} style={{ marginRight: '1rem' }}>📥 Placer un Pokémon</button>
-          <button onClick={handleAttachEnergy} style={{ marginRight: '1rem' }}>🔋 Attacher une énergie</button>
+          {!selectingEnergyTarget && (
+          <button onClick={handleAttachEnergy} style={{ marginRight: '1rem' }}>🔋 Attacher une énergie</button>)}
           <button onClick={handleAttack} style={{ marginRight: '1rem' }}>⚔️ Attaquer</button>
           <button onClick={handleHumanTurnEnd}>🔚 Fin du tour</button>
         </div>
       )}
+
+      {selectingEnergyTarget && (
+        <div style={{ marginTop: '1rem' }}>
+          <h3>Choisissez un Pokémon pour attacher l’énergie :</h3>
+          <button onClick={() => attachEnergyTo(currentPlayer.active)}>Actif – {currentPlayer.active?.name}</button>
+          {currentPlayer.bench.map((p, i) => (
+            <button key={i} onClick={() => attachEnergyTo(p)} style={{ marginLeft: '1rem' }}>{p.name}</button>
+          ))}
+        </div>
+      )}
+
+      {selectingRetreatTarget && (
+        <div style={{ marginTop: '1rem' }}>
+          <h3>Choisissez le Pokémon du banc à envoyer au poste Actif :</h3>
+          {currentPlayer.bench.map((p, i) => (
+            <button key={i} onClick={() => {
+              const success = currentPlayer.retreatActive(p);
+              if (success) {
+                battle.log(`${currentPlayer.name} bat en retraite. Nouveau actif : ${p.name}`);
+                setLogs([...battle.logs]);
+              }
+              setSelectingRetreatTarget(false);
+              setGameState({ player1: battle.player1, player2: battle.player2, phase: battle.phase });
+            }}>{p.name}</button>
+          ))}
+        </div>
+      )}
+
 
       {battle && !setupDone && (
         <div>

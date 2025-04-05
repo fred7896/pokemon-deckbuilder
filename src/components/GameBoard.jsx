@@ -1,10 +1,15 @@
 import React from 'react';
 
+const energyIcons = {
+  G: '🌿', F: '🥊', W: '💧', L: '⚡', P: '🧠', D: '🌑', M: '🛡️', R: '🔥'
+};
+
 const GameBoard = ({ state, showEnergyAndHP = false, turn }) => {
   const renderPokemon = (pokemon) => {
+    // console.log(pokemon);
     if (!pokemon) return <div style={{ fontStyle: 'italic' }}>Aucun</div>;
     // console.log(pokemon);
-
+    //console.log(pokemon.attacks);
     return (
       <div style={{
         border: '1px solid #ccc',
@@ -16,11 +21,24 @@ const GameBoard = ({ state, showEnergyAndHP = false, turn }) => {
         <strong>{pokemon.name}</strong>
         {showEnergyAndHP && (
           <div style={{ fontSize: '0.9rem', marginTop: '0.25rem' }}>
-            ❤️ PV : {pokemon.currentHp} | 🔋 Énergie : {pokemon.energyAttached || 0}
+            ❤️ PV : {pokemon.hp} | 🔋 Énergies : {pokemon && pokemon.attachedEnergy.map((e, i) => <span key={i}>{energyIcons[e] || e}</span>)}
           </div>
         )}
         <div style={{ fontSize: '0.9rem' }}>
-          Coût d'attaque : {pokemon.attackCost} | Dégâts : {pokemon.attackDamage} | Coût de retraite : {pokemon.retreatCost}
+          {pokemon.attacks && pokemon.attacks.length > 0 ? pokemon.attacks.map((attack, i) => (
+            <div key={i}>
+              <strong>{attack.name}</strong> : {attack.damage} dégâts
+              <br />
+              Coût : {Object.entries(attack.cost).map(([type, count]) =>
+                [...Array(count)].map((_, i) => (
+                  <span key={`${type}-${i}`}>{energyIcons[type] || type}</span>
+                ))
+              )}
+            </div> 
+          )) : (
+            <div style={{ fontStyle: 'italic' }}>Aucune attaque</div>)
+          }
+          Coût de retraite : {pokemon.retreatCost}
         </div>
       </div>
     );
@@ -37,7 +55,18 @@ const GameBoard = ({ state, showEnergyAndHP = false, turn }) => {
   };
 
   const winner = state.phase === 'combat' ? checkVictory(state.player1, state.player2) : null;
-  console.log(turn);
+  // console.log(turn);
+
+  const renderEnergyPreview = (player) => {
+    const current = player.energyPool?.getCurrent?.();
+    const next = player.energyPool?.getNext?.();
+    return (
+      <div style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+        <div>Énergie en cours : {current ? energyIcons[current] : '—'}</div>
+        <div>Prochaine énergie : {next ? energyIcons[next] : '—'}</div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -54,7 +83,7 @@ const GameBoard = ({ state, showEnergyAndHP = false, turn }) => {
         {[state.player1, state.player2].map((player, idx) => (
           <div key={idx} style={{ width: '45%' }}>
             <h3>{player.name} — 🏆 {player.points} point(s)</h3>
-            <div style={{ padding: '20px 0' }}>Energy pool: {player.energyPool}</div>
+            {renderEnergyPreview(player)}
             <div>
               <strong>Actif :</strong>
               {renderPokemon(player.active)}
@@ -72,6 +101,12 @@ const GameBoard = ({ state, showEnergyAndHP = false, turn }) => {
               <div style={{ display: 'flex', flexWrap: 'wrap' }}>{player.hand.map((card, i) => (
                 <span key={i} style={{ marginRight: '0.5rem' }}>{card.name}</span>
               ))}</div>
+            </div>
+            <div>
+              <strong>Défausse :</strong>
+              <div>{player.discard.length > 0 ? player.discard.map((card, i) => (
+                <span key={i} style={{ marginRight: '0.5rem' }}>{card.name}</span>
+              )) : <span style={{ fontStyle: 'italic' }}>Vide</span>}</div>
             </div>
           </div>
         ))}
